@@ -54,6 +54,9 @@ class ConwaysGameOfLife(Model):
             #   Ejemplo: si initial_fraction_alive=0.2, el 20% de celulas estaran vivas
             # self.gird.select_cells()
             #print(cell.coordinate[0])
+
+            # Se crean los agentes con estado aleatorio solamente en la fila 49 (superior)
+            
             if(cell.coordinate[1]==49):
                 
                 Cell(

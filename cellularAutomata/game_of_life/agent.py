@@ -42,11 +42,15 @@ class Cell(FixedAgent):
         # at the next tick.
         # live_neighbors = sum(neighbor.is_alive for neighbor in self.neighbors)
 
+        # Se convierte a una lista los vecinos del agente y se guardan sus estados en estos_neighbors
+
         neighbors_list = list(self.cell.neighborhood.agents)
         neighbors_states = [neighbor.state for neighbor in neighbors_list]
 
         # Assume nextState is unchanged, unless changed below.
         self._next_state = self.state
+
+        # Reglas para determinar el estado del agente siguiente
 
         if neighbors_states[2] == 1 and neighbors_states[4] == 1 and neighbors_states[7] == 1:
             self._next_state = self.DEAD
