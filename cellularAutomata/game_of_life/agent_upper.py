@@ -28,10 +28,10 @@ class Cell(FixedAgent):
     def neighbors(self):
         return self.cell.neighborhood.agents
     
-    def _init_(self, model, cell, init_state=DEAD):
+    def __init__(self, model, cell, init_state=DEAD):
         """Create a cell, in the given state, at the given x, y position."""
         # Super llama al constructor de FixedAgent para inicializarlo
-        super()._init_(model)
+        super().__init__(model)
         self.cell = cell # referencia a la celda
         self.pos = cell.coordinate #guarda la posicion
         self.state = init_state #inicializa el estado actual

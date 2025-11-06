@@ -1,12 +1,12 @@
 from mesa import Model
 from mesa.discrete_space import OrthogonalMooreGrid
-from .agent import Cell
+from .agent_upper import Cell
 
 
 class ConwaysGameOfLife(Model):
     """Represents the 2-dimensional array of cells in Conway's Game of Life."""
 
-    def _init_(self, width=50, height=50, initial_fraction_alive=0.2, seed=None):
+    def __init__(self, width=50, height=50, initial_fraction_alive=0.2, seed=None):
         """Create a new playing area of (width, height) cells.
         
         Args:
@@ -18,7 +18,7 @@ class ConwaysGameOfLife(Model):
         # Inicializa la clase Model de Mesa (modelo base)
         # El seed permite reproducir la misma simulacion
         # Inicializa la clase Model de Mesa (modelo base)
-        super()._init_(seed=seed)
+        super().__init__(seed=seed)
 
         # ===== CREAR EL GRID =====
         # OrthogonalMooreGrid: Grid rectangular donde cada celda tiene 8 vecinos
@@ -56,7 +56,7 @@ class ConwaysGameOfLife(Model):
             #print(cell.coordinate[0])
 
             # Se crean los agentes con estado aleatorio solamente en la fila 49 (superior)
-            
+
             if(cell.coordinate[1]==49):
                 
                 Cell(
