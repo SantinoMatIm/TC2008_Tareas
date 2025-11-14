@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tarea 1 - Cara Feliz 2D</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #f2f6fb;
+        color: #1f2a37;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+        padding: 1.5rem;
+      }
+      header {
+        text-align: center;
+      }
+      canvas {
+        border: 2px solid #1f2a37;
+        max-width: 100%;
+        height: auto;
+        background: #fff;
+      }
+      .instructions {
+        max-width: 720px;
+        text-align: center;
+        line-height: 1.4;
+      }
+      a {
+        color: #2563eb;
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Tarea 1</h1>
+      <p>Cara feliz animada con transformaciones 2D y controles mediante lil-gui.</p>
+      <p><a href="../index.html">Regresar al listado</a></p>
+    </header>
+
+    <canvas id="tarea1-face" width="900" height="600"></canvas>
+
+    <div class="instructions">
+      <p>
+        Usa el panel de lil-gui (aparece en la esquina superior derecha) para mover el pivote,
+        trasladar la cara, escalarla y rotarla alrededor del punto que elijas.
+      </p>
+      <p>
+        Si el panel no es visible, presiona el icono de carpeta o refresca la página para reinstaurar los controles.
+      </p>
+    </div>
+
+    <script type="module" src="./smiley-face.js"></script>
+  </body>
+</html>
+
