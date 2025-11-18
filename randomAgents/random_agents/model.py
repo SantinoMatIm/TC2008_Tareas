@@ -10,15 +10,16 @@ class RandomModel(Model):
         num_agents: Number of agents in the simulation
         height, width: The size of the grid to model
     """
-    def __init__(self, num_agents=1, width=8, height=8, seed=42, obstacles_cells=0.1, trash_cells=0.1):
+    def __init__(self, num_agents=1, porObs = 0.2, probTrash =0.5, width=8, height=8, seed=42):
 
         super().__init__(seed=seed)
         self.num_agents = num_agents
         self.seed = seed
         self.width = width
         self.height = height
-        self.obstacles_cells = obstacles_cells
-        self.trash_cells = trash_cells
+        self.porObs = porObs
+        self.probTrash = probTrash
+
         self.grid = OrthogonalMooreGrid([width, height], torus=False)
 
         # Identify the coordinates of the border of the grid
@@ -32,25 +33,46 @@ class RandomModel(Model):
             if cell.coordinate in border:
                 ObstacleAgent(self, cell=cell)
 
-        RandomAgent.create_agents(
-            self,
-            self.num_agents,
-            cell=self.grid.empties.cells[0]
-        )
+        charging_cell = None
+        for cell in self.grid.empties.cells:
+            if cell.coordinate == (1,1):
+                charging_cell = cell
+                break
+        if charging_cell is None:
+            charging_cell= self.grid.empties.cells[0]
+        
+        charging_station = ChargingStationAgent(self, cell=charging_cell)
+        charging_station_pos = charging_cell.coordinate
+        
+        
+        num_obstacle_cells = int(len(self.grid.empties.cells) * self.porObs)
 
-        obstacle_count = int(len(self.grid.empties.cells) * self.obstacles_cells)
         ObstacleAgent.create_agents(
-            self,
-            n=obstacle_count,
-            cell=self.random.choices(self.grid.empties.cells, k=obstacle_count)
+            self, 
+            n = num_obstacle_cells,
+            cell = self.random.choices(self.grid.empties.cells, k = num_obstacle_cells)
         )
 
-        trash_count = int(len(self.grid.empties.cells) * self.trash_cells)
+        num_trash = int(len(self.grid.empties.cells)*self.probTrash)
         TrashAgent.create_agents(
             self,
-            n=trash_count,
-            cell=self.random.choices(self.grid.empties.cells, k=trash_count)
+            n = num_trash, cell = self.random.choices(self.grid.empties.cells, k = num_trash)
         )
+
+
+        for i in range(self.num_agents):
+            if i < len(self.grid.empties.cells):
+                cell = self.grid.empties.cells[i]
+                RandomAgent(
+                    self,
+                    cell=cell,
+                    energy=100,
+                    mapa={},
+                    charging_station=charging_station_pos
+            )
+
+        
+
         self.running = True
 
     def step(self):

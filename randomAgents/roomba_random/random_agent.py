@@ -21,7 +21,7 @@ class RandomAgent(CellAgent):
     Attributes:
         unique_id: Agent's ID
     """
-    def __init__(self, model, cell, energy = 100, mapa = None, charging_station = (0,0)):
+    def __init__(self, model, cell, energy = 100, mapa = None, charging_station = (0,0), trash_count=0):
         """
         Creates a new random agent.
         Args:
@@ -32,10 +32,16 @@ class RandomAgent(CellAgent):
         self.cell = cell
         self.energy = energy
         self.mapa = mapa if mapa is not None else {}
-        self.charging_station = charging_station
+        
+        # Ahora guardamos un set de estaciones conocidas.
+        # Inicializamos con la que se le asigna al nacer.
+        self.known_stations = {charging_station} 
+        
         self.returnning_to_station = False #estado para estar en modo regreso
         self.path_to_station = None #camino calculado
         self.state_charging = False #si esta cargando energia
+        self.trash_count = trash_count
+        self.movement_count = 0  # Contador de movimientos
 
     @property
     def neighbors(self):
@@ -54,29 +60,30 @@ class RandomAgent(CellAgent):
         """
         Determines the next cell in its neighborhood (empty or with trash), and moves to it
         """
+        # Verificar si el robot murio
+        if self.energy <= 0:
+            self.is_alive = False
+            return
 
-        # Marcar celdas adyacentes
-        # -1 no explorado
-        # 0 libre
-        # 1 obstaculo
-
+        # 1. Escanear vecinos para actualizar mapa y DESCUBRIR ESTACIONES
         cells_around_me = self.cell.neighborhood
+        
+        # Revisar celdas vecinas
         for neigh_cell in cells_around_me:
-            all_x = neigh_cell.coordinate[0]
-            all_y = neigh_cell.coordinate[1]
-            if (all_x, all_y) not in self.mapa: # Si no ha sido explorada
-                self.mapa[(all_x, all_y)] = -1 
-        
-        
-        # Guardar en el mapa celdas vecinas
-        cells_with_obstacles = self.cell.neighborhood.select(
-            lambda cell: any(isinstance(obj, ObstacleAgent) for obj in cell.agents)
-        )
-        for obs in cells_with_obstacles:
-            ox = obs.coordinate[0]
-            oy = obs.coordinate[1]
-            self.mapa[(ox,oy)] = 1  # Marca obstaculo
+            nx, ny = neigh_cell.coordinate
+            
+            # Actualizar mapa de exploracion
+            if (nx, ny) not in self.mapa: 
+                self.mapa[(nx, ny)] = -1 
 
+            # Buscar si hay estaciones de carga en los vecinos
+            for agent in neigh_cell.agents:
+                if isinstance(agent, ChargingStationAgent):
+                    self.known_stations.add(neigh_cell.coordinate) # ¡Nueva estacion descubierta!
+                elif isinstance(agent, ObstacleAgent):
+                    self.mapa[(nx, ny)] = 1 # Marcar obstaculo
+
+        
         # Si esta cargando, quedarse en la estacion hasta llegar a 100
         if self.state_charging:
             if self.energy >= 100:
@@ -88,11 +95,18 @@ class RandomAgent(CellAgent):
                 return  # No moverse mientras carga
 
         # Verificar si la energia es baja y necesita regresar a cargar
-        if self.energy < 30 and not self.state_charging:
+        if self.energy < 40 and not self.state_charging:
             if not self.returnning_to_station:
-                #calcular el camino a la estacion de carga
+                # Encontrar la estacion mas cercana de las conocidas
                 current_pos = self.cell.coordinate
-                self.path_to_station = self.bfs(current_pos, self.charging_station)
+                
+                # Logica para buscar la mas cercana (Distancia Manhattan)
+                closest_station = min(
+                    self.known_stations, 
+                    key=lambda pos: abs(pos[0] - current_pos[0]) + abs(pos[1] - current_pos[1])
+                )
+                
+                self.path_to_station = self.bfs(current_pos, closest_station)
                 self.returnning_to_station = True
             
             if self.path_to_station and len(self.path_to_station) > 1:
@@ -107,9 +121,16 @@ class RandomAgent(CellAgent):
                     if has_obstacle:
                         # Descubrio un obstaculo nuevo -> Actualizar mapa
                         self.mapa[next_pos] = 1
-                        # Recalcular ruta desde posicion actual
+                        # Recalcular ruta desde posicion actual a la misma estacion (o podriamos reevaluar la mas cercana)
                         current_pos = self.cell.coordinate
-                        self.path_to_station = self.bfs(current_pos, self.charging_station)
+                        
+                        # Reevaluamos la mas cercana por si acaso el obstaculo cambia la decision
+                        closest_station = min(
+                            self.known_stations, 
+                            key=lambda pos: abs(pos[0] - current_pos[0]) + abs(pos[1] - current_pos[1])
+                        )
+                        self.path_to_station = self.bfs(current_pos, closest_station)
+                        
                         # No moverse este turno, esperar al siguiente
                         return
                     
@@ -117,18 +138,20 @@ class RandomAgent(CellAgent):
                     self.cell = next_cell
                     self.mapa[next_pos] = 0
                     self.energy -= 1
+                    self.movement_count += 1  # Incrementar contador de movimientos
                     #actualizar el camino
                     self.path_to_station = self.path_to_station[1:]
 
-                    #si llego a la estacion de carga
-                    if next_pos == self.charging_station:
+                    # Verificamos si la posicion actual es ALGUNA de las estaciones conocidas
+                    if next_pos in self.known_stations:
                         self.state_charging = True
                         self.returnning_to_station = False
                         self.path_to_station = None
             else:
                 # No hay camino o ya llego
                 self.returnning_to_station = False
-                if self.cell.coordinate == self.charging_station:
+                # Si estamos parados sobre una estacion
+                if self.cell.coordinate in self.known_stations:
                     self.state_charging = True
             return  # Salir de la funcion despues de moverse hacia la estacion de carga
 
@@ -148,6 +171,7 @@ class RandomAgent(CellAgent):
                 # Si hay basura cerca, moverse hacia ella
                 self.cell = cells_with_trash.select_random_cell()
                 self.mapa[(self.cell.coordinate[0], self.cell.coordinate[1])] = 0
+                self.movement_count += 1  # Incrementar contador de movimientos
             else:
                 # si no hay basura cerca, moverse a una celda vacia
                 unexplored_cells = cells_without_obstacles.select(
@@ -156,8 +180,10 @@ class RandomAgent(CellAgent):
                 if unexplored_cells: #moverse a celda no explorada
                     self.cell = unexplored_cells.select_random_cell()
                     self.mapa[(self.cell.coordinate[0], self.cell.coordinate[1])] = 0
+                    self.movement_count += 1  # Incrementar contador de movimientos
                 else: #moverse a cualquier celda
                     self.cell = cells_without_obstacles.select_random_cell()
+                    self.movement_count += 1  # Incrementar contador de movimientos
 
                 self.mapa[(self.cell.coordinate[0], self.cell.coordinate[1])] = 0
 
@@ -171,6 +197,7 @@ class RandomAgent(CellAgent):
         if trash_in_cell:
             trash_in_cell[0].remove()
             self.energy -= 1
+            self.trash_count += 1
 
     def step(self):
         """
@@ -182,7 +209,7 @@ class RandomAgent(CellAgent):
     def bfs(self, start, goal):
         """
         Encuentra el camino mas corto usando SOLO el mapa que el agente ha explorado.
-        Celdas desconocidas (-1) se asumen libres (el agente es optimista).
+        Celdas desconocidas (-1) se asumen libres.
         """
 
         #cola para BFS; guardamos (posicion actual, camino hasta aqui)
@@ -210,6 +237,7 @@ class RandomAgent(CellAgent):
                 if next_x < 0 or next_x >= self.model.width or next_y < 0 or next_y >= self.model.height:
                     continue
                 
+                # si esta en el mapa, obtener su estado, si no esta, asumir -1 (no explorado)
                 cell_state = self.mapa.get(next_pos, -1)
                 
                 # Solo evitar celdas que SABEMOS que son obstaculos
@@ -223,10 +251,6 @@ class RandomAgent(CellAgent):
                 new_path = path + [next_pos]
                 queue.append((next_pos, new_path))
         return None
-
-
-
-
 
 class ObstacleAgent(FixedAgent):
     """
