@@ -73,12 +73,16 @@ plot_component = make_plot_component(
 )
 
 plot_component2 = make_plot_component(
-    {"Porcentaje Celdas Limpias": "green", "Movimientos Totales": "orange",},
+    {"Porcentaje Celdas Limpias": "green",},
+)
+
+plot_component3 = make_plot_component(
+    {"Movimientos Totales": "orange",},
 )
 
 page = SolaraViz(
     model,
-    components=[space_component, plot_component, plot_component2],
+    components=[space_component, plot_component, plot_component2, plot_component3],
     model_params=model_params,
     name="Random Model",
 )
