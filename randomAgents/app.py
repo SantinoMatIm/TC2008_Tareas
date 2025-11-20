@@ -52,7 +52,6 @@ model_params = {
     "height": Slider("Grid height", 20, 5, 50),
     "porObs": Slider("Percentage of obstacles", 0.1, 0.0, 0.5, 0.01),
     "probTrash": Slider("Percentage of dirty cells", 0.3, 0.0, 1.0, 0.01),
-    "max_steps": Slider("Maximum execution time", 500, 50, 2000, 10),
 }
 
 # Create the model using the initial parameters from the settings
@@ -62,7 +61,6 @@ model = RandomModel(
     height=model_params["height"].value,
     porObs=model_params["porObs"].value,
     probTrash=model_params["probTrash"].value,
-    max_steps=model_params["max_steps"].value,
     seed=model_params["seed"]["value"]
 )
 
@@ -77,7 +75,7 @@ plot_component = make_plot_component(
 )
 
 plot_component2 = make_plot_component(
-    {"Porcentaje Celdas Limpias": "green",},
+    {"Porcentaje Limpio": "green",},
 )
 
 plot_component3 = make_plot_component(

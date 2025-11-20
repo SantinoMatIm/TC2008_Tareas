@@ -4,7 +4,7 @@ from mesa.datacollection import DataCollector
 
 from .agent import RandomAgent, ObstacleAgent, TrashAgent, ChargingStationAgent
 
-# Funciones para recolectar datos
+#Funciones para recolectar datos
 def get_total_trash_collected(model):
     agents = [a for a in model.agents if isinstance(a, RandomAgent)]
     if not agents:
@@ -32,25 +32,14 @@ def get_total_movements(model):
         return 0
     return sum(agent.movement_count for agent in agents)
 
-def get_time_to_completion(model):
-    """Tiempo necesario hasta que todas las celdas estén limpias (o tiempo máximo)"""
-    trash_agents = [a for a in model.agents if isinstance(a, TrashAgent)]
-    if len(trash_agents) == 0:
-        return model.step_count
-    return model.step_count
-
 class RandomModel(Model):
     """
     Creates a new model with random agents.
     Args:
         num_agents: Number of agents in the simulation
         height, width: The size of the grid to model
-        porObs: Percentage of cells that act as obstacles
-        probTrash: Percentage of cells initially dirty
-        max_steps: Maximum execution time
-        seed: Random seed
     """
-    def __init__(self, num_agents=1, porObs=0.1, probTrash=0.5, width=8, height=8, max_steps=200, seed=42):
+    def __init__(self, num_agents=1, porObs = 0.2, probTrash =0.5, width=8, height=8, seed=42):
 
         super().__init__(seed=seed)
         self.num_agents = num_agents
@@ -60,102 +49,81 @@ class RandomModel(Model):
         self.porObs = porObs
         self.probTrash = probTrash
         self.step_count = 0
-        self.max_steps = max_steps
+        self.max_steps = 200
 
         self.grid = OrthogonalMooreGrid([width, height], torus=False)
 
         # Identify the coordinates of the border of the grid
-        # Excluir (1,1) del borde para que sea la estación de carga
         border = [(x,y)
                   for y in range(height)
                   for x in range(width)
-                  if (y in [0, height-1] or x in [0, width - 1]) and (x, y) != (1, 1)]
+                  if y in [0, height-1] or x in [0, width - 1]]
 
         # Create the border cells
         for _, cell in enumerate(self.grid):
             if cell.coordinate in border:
                 ObstacleAgent(self, cell=cell)
 
-        # Calcular número de celdas disponibles (sin bordes)
-        available_cells = len(self.grid.empties.cells)
+
+        # Primero crear obstáculos
+        num_obstacle_cells = int(len(self.grid.empties.cells) * self.porObs)
+        ObstacleAgent.create_agents(
+            self,
+            n = num_obstacle_cells,
+            cell = self.random.choices(self.grid.empties.cells, k = num_obstacle_cells)
+        )
+
+        # Luego crear basura (máximo 1 por celda)
+        num_trash = int(len(self.grid.empties.cells)*self.probTrash)
+        # Asegurarnos de no pedir más celdas de las disponibles
+        num_trash = min(num_trash, len(self.grid.empties.cells))
+        # Usar sample en lugar de choices para evitar repeticiones (máximo 1 basura por celda)
+        trash_cells = self.random.sample(self.grid.empties.cells, num_trash)
+        TrashAgent.create_agents(
+            self,
+            n = num_trash,
+            cell = trash_cells
+        )
+
+        # FINALMENTE crear agente y estación de carga en [1,1] (para que se dibujen ENCIMA)
+        # Para Simulación 1: Agente individual en [1,1]
+        charging_cell = None
+        # Buscar la celda (1,1) directamente del grid
+        for cell in self.grid.all_cells:
+            if cell.coordinate == (1, 1):
+                charging_cell = cell
+                break
         
-        # Crear obstáculos (porcentaje de celdas disponibles)
-        num_obstacle_cells = int(available_cells * self.porObs)
-        if num_obstacle_cells > 0:
-            ObstacleAgent.create_agents(
-                self, 
-                n=num_obstacle_cells,
-                cell=self.random.choices(self.grid.empties.cells, k=num_obstacle_cells)
-            )
+        if charging_cell:
+            # Creamos una estación de carga en [1,1]
+            station = ChargingStationAgent(self, cell=charging_cell)
+            station_pos = charging_cell.coordinate
 
-        # Crear basura (porcentaje de celdas disponibles)
-        num_trash = int(available_cells * self.probTrash)
-        if num_trash > 0:
-            TrashAgent.create_agents(
+            # Ahora creamos el robot y le pasamos la posición de SU estación
+            # Los RandomAgent se crean AL FINAL para que se dibujen ENCIMA de todo
+            RandomAgent(
                 self,
-                n=num_trash, 
-                cell=self.random.choices(self.grid.empties.cells, k=num_trash)
+                cell=charging_cell,
+                energy=100,
+                mapa={},
+                charging_station=station_pos
             )
-
-        # SIMULACIÓN 1: Agente individual inicia en [1,1]
-        # SIMULACIÓN 2: Múltiples agentes inician en posiciones aleatorias
-        if self.num_agents == 1:
-            # Simulación 1: Agente individual en [1,1]
-            charging_cell = None
-            # Buscar la celda (1,1) directamente del grid
-            for cell in self.grid.all_cells:
-                if cell.coordinate == (1, 1):
-                    charging_cell = cell
-                    break
-            
-            if charging_cell:
-                # Crear estación de carga en [1,1]
-                charging_station = ChargingStationAgent(self, cell=charging_cell)
-                charging_station_pos = charging_cell.coordinate
-                
-                # Crear agente en [1,1]
-                RandomAgent(
-                    self,
-                    cell=charging_cell,
-                    energy=100,
-                    mapa={},
-                    charging_station=charging_station_pos
-                )
-        else:
-            # Simulación 2: Múltiples agentes en posiciones aleatorias
-            # Cada agente tiene su propia estación de carga en su posición inicial
-            if self.num_agents <= len(self.grid.empties.cells):
-                agent_cells = self.random.sample(self.grid.empties.cells, self.num_agents)
-                
-                for cell in agent_cells:
-                    # Crear estación de carga en la misma celda donde nacerá el agente
-                    station = ChargingStationAgent(self, cell=cell)
-                    station_pos = cell.coordinate
-
-                    # Crear el robot y le pasamos la posición de SU estación
-                    RandomAgent(
-                        self,
-                        cell=cell,
-                        energy=100,
-                        mapa={},
-                        charging_station=station_pos
-                    )
 
         # Data Collector
         self.datacollector = DataCollector(
             model_reporters={
                 "Basura Recolectada": get_total_trash_collected,
                 "Energia promedio": get_avg_energy,
-                "Porcentaje Celdas Limpias": get_percentage_clean_cells,
-                "Movimientos Totales": get_total_movements,
-                "Tiempo de Ejecucion": get_time_to_completion
+                "Porcentaje Limpio": get_percentage_clean_cells,
+                "Movimientos Totales": get_total_movements
             },
             agent_reporters={
-                "Movimientos": lambda a: a.movement_count if isinstance(a, RandomAgent) else 0,
-                "Basura Recolectada": lambda a: a.trash_count if isinstance(a, RandomAgent) else 0,
-                "Energia": lambda a: a.energy if isinstance(a, RandomAgent) else 0
+                "Pasos": lambda a: a.movement_count if isinstance(a, RandomAgent) else None,
+                "Basura Recolectada": lambda a: a.trash_count if isinstance(a, RandomAgent) else None
             }
         )
+
+        
 
         self.running = True
 

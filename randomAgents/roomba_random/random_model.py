@@ -63,18 +63,39 @@ class RandomModel(Model):
             if cell.coordinate in border:
                 ObstacleAgent(self, cell=cell)
 
-        
-        # Create Random Agents with their charging stations
+
+        # Primero crear obstáculos
+        num_obstacle_cells = int(len(self.grid.empties.cells) * self.porObs)
+        ObstacleAgent.create_agents(
+            self,
+            n = num_obstacle_cells,
+            cell = self.random.choices(self.grid.empties.cells, k = num_obstacle_cells)
+        )
+
+        # Luego crear basura (máximo 1 por celda)
+        num_trash = int(len(self.grid.empties.cells)*self.probTrash)
+        # Asegurarnos de no pedir más celdas de las disponibles
+        num_trash = min(num_trash, len(self.grid.empties.cells))
+        # Usar sample en lugar de choices para evitar repeticiones (máximo 1 basura por celda)
+        trash_cells = self.random.sample(self.grid.empties.cells, num_trash)
+        TrashAgent.create_agents(
+            self,
+            n = num_trash,
+            cell = trash_cells
+        )
+
+        # FINALMENTE crear agentes y estaciones de carga (para que se dibujen ENCIMA)
         # Seleccionar celdas aleatorias para cada agente
         if self.num_agents <= len(self.grid.empties.cells):
             agent_cells = self.random.sample(self.grid.empties.cells, self.num_agents)
-            
+
             for cell in agent_cells:
                 # Creamos una estación de carga en la misma celda donde nacerá el agente
                 station = ChargingStationAgent(self, cell=cell)
                 station_pos = cell.coordinate
 
                 # Ahora creamos el robot y le pasamos la posición de SU estación
+                # Los RandomAgent se crean AL FINAL para que se dibujen ENCIMA de todo
                 RandomAgent(
                     self,
                     cell=cell,
@@ -82,32 +103,18 @@ class RandomModel(Model):
                     mapa={},
                     charging_station=station_pos
                 )
-        
-        num_obstacle_cells = int(len(self.grid.empties.cells) * self.porObs)
-        ObstacleAgent.create_agents(
-            self, 
-            n = num_obstacle_cells,
-            cell = self.random.choices(self.grid.empties.cells, k = num_obstacle_cells)
-        )
-
-        
-
-
-        
-
-        num_trash = int(len(self.grid.empties.cells)*self.probTrash)
-        TrashAgent.create_agents(
-            self,
-            n = num_trash, cell = self.random.choices(self.grid.empties.cells, k = num_trash)
-        )
 
         # Data Collector
         self.datacollector = DataCollector(
             model_reporters={
                 "Basura Recolectada": get_total_trash_collected,
                 "Energia promedio": get_avg_energy,
-                "Porcentaje Celdas Limpias": get_percentage_clean_cells,
+                "Porcentaje Limpio": get_percentage_clean_cells,
                 "Movimientos Totales": get_total_movements
+            },
+            agent_reporters={
+                "Pasos": lambda a: a.movement_count if isinstance(a, RandomAgent) else None,
+                "Basura Recolectada": lambda a: a.trash_count if isinstance(a, RandomAgent) else None
             }
         )
 

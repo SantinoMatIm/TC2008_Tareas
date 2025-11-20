@@ -21,24 +21,7 @@ class ObstacleAgent(FixedAgent):
         pass
 
 class RandomAgent(CellAgent):
-    """
-    Agent that cleans a room using a subsumption architecture.
-    Attributes:
-        energy: Battery level (0-100)
-        mapa: Internal map of explored cells
-        known_stations: Set of known charging station positions
-    """
     def __init__(self, model, cell, energy = 100, mapa = None, charging_station = (0,0), trash_count=0):
-        """
-        Creates a new random agent.
-        Args:
-            model: Model reference for the agent
-            cell: Reference to its position within the grid
-            energy: Initial battery level (default 100)
-            mapa: Internal map dictionary
-            charging_station: Initial charging station position
-            trash_count: Initial trash count
-        """
         super().__init__(model)
         self.cell = cell
         self.energy = energy
@@ -72,7 +55,7 @@ class RandomAgent(CellAgent):
         return None
 
     def scan_environment(self):
-        """Actualiza el mapa con la información local"""
+        """Actualiza el mapa con la informacion local"""
         cells_around_me = self.cell.neighborhood
         current_pos = self.cell.coordinate
 
@@ -96,10 +79,9 @@ class RandomAgent(CellAgent):
                     self.mapa[(nx, ny)] = 1
                     has_obstacle = True
             
-            # Si ya sabía que era -1 y veo que no hay obstaculo, confirmo que es accesible
+            # Si ya sabia que era -1 y veo que no hay obstaculo, confirmo que es accesible
             # Pero no la marco como 2 (visitada) hasta que la pise.
             if not has_obstacle and self.mapa[(nx, ny)] == 1:
-                 # Correccion de mapa: creiamos que era obstáculo pero no lo es (casos dinámicos)
                  self.mapa[(nx, ny)] = 0
 
     def move(self):
@@ -115,16 +97,15 @@ class RandomAgent(CellAgent):
                 self.state_charging = False
                 self.returnning_to_station = False
             else:
-                # Recargar 5% por paso en estación (no gasta energía ni se mueve)
                 self.energy = min(100, self.energy + 5)
                 return 
 
         # 3. Verificar bateria critica -> Ir a cargar
-        # Umbral dinamico: un poco más alto para dar margen al pathfinding
+        # Umbral dinamico: un poco mas alto para dar margen al pathfinding
         if self.energy < 40 and not self.state_charging:
             self.go_to_station()
             return
-
+        
         # 4. Comportamiento de Limpieza (Prioridad Alta)
         # Si hay basura adyacente, ir por ella.
         cells_with_trash = self.cell.neighborhood.select(
@@ -152,13 +133,13 @@ class RandomAgent(CellAgent):
             self.path_to_target = None
             return
 
-        # 6. Exploración Proactiva (Targeting Global)
+        # 6. Exploracion Proactiva
         # Si no hay nada interesante cerca, buscar en el mapa global una celda -1
         self.proactive_exploration()
 
     def proactive_exploration(self):
         """
-        Calcula una ruta hacia la celda inexplorada (-1) más cercana en el mapa conocido.
+        Calcula una ruta hacia la celda inexplorada (-1) mas cercana en el mapa conocido.
         """
         current_pos = self.cell.coordinate
         
@@ -181,10 +162,9 @@ class RandomAgent(CellAgent):
         
         if not frontier_cells:
             # Mapa completamente explorado (o inaccesible): Movimiento Aleatorio
-            # pero evitando obstáculos
+            # pero evitando obstaculos
             valid_neighbors = self.cell.neighborhood.select(
-                 lambda cell: not any(isinstance(a, ObstacleAgent) for a in cell.agents) and
-                             not any(isinstance(obj, RandomAgent) for obj in cell.agents)
+                 lambda cell: not any(isinstance(a, ObstacleAgent) for a in cell.agents)
             )
             if valid_neighbors:
                 self.execute_move(valid_neighbors.select_random_cell())
@@ -212,20 +192,19 @@ class RandomAgent(CellAgent):
             # para no volver a intentarlo y moverse random
             self.mapa[closest_frontier] = 2 
             valid_neighbors = self.cell.neighborhood.select(
-                 lambda cell: not any(isinstance(a, ObstacleAgent) for a in cell.agents) and
-                             not any(isinstance(obj, RandomAgent) for obj in cell.agents)
+                 lambda cell: not any(isinstance(a, ObstacleAgent) for a in cell.agents)
             )
             if valid_neighbors:
                 self.execute_move(valid_neighbors.select_random_cell())
 
     def go_to_station(self):
         current_pos = self.cell.coordinate
-        # 1. Seleccionar estación mas cercana
+        # 1. Seleccionar estacion mas cercana
         closest_station = min(
             self.known_stations, 
             key=lambda pos: abs(pos[0] - current_pos[0]) + abs(pos[1] - current_pos[1])
         )
-        # 2. Si ya estoy en la estación: CARGAR
+        # 2. Si ya estoy en la estacion: CARGAR
         if current_pos == closest_station:
             self.state_charging = True
             return
@@ -252,28 +231,33 @@ class RandomAgent(CellAgent):
                 pass
 
     def execute_move(self, next_cell):
-        """Función auxiliar para ejecutar el movimiento físico y gasto de energía"""
+        """Funcion auxiliar para ejecutar el movimiento fisico y gasto de energia"""
         self.cell = next_cell
         self.movement_count += 1
-        self.energy -= 1  # Cada acción (movimiento) quita 1% de batería
+        self.energy -= 1
         
-        # IMPORTANTE: Al pisar la celda, la marcamos como Visitada (2)
-        # Esto permite que el BFS la use para backtracking después
+        # Al pisar la celda, la marcamos como Visitada (2)
         self.mapa[self.cell.coordinate] = 2
-    
+
     def clean(self):
+        """
+        Intenta limpiar la casilla actual.
+        Retorna True si limpió basura, False si no había nada.
+        """
         trash_in_cell = [agent for agent in self.cell.agents if isinstance(agent, TrashAgent)]
         
         if trash_in_cell:
-            # Limpiar
             trash_in_cell[0].remove()
-            self.energy -= 1  # Cada acción (limpieza) quita 1% de batería
+            self.energy -= 1
             self.trash_count += 1
-            return
+            return True
+        
+        return False 
 
     def step(self):
+        if self.clean():
+            return 
         self.move()
-        self.clean()
         
 
     def bfs(self, start, goal):
@@ -281,7 +265,7 @@ class RandomAgent(CellAgent):
         BFS que considera transitables:
         0: Libre escaneado
         2: Visitado (para poder regresar)
-        -1: Frontera (destino válido)
+        -1: Frontera (destino valido)
         Estaciones: Transitables
         """
         queue = deque([(start, [start])])
@@ -301,16 +285,16 @@ class RandomAgent(CellAgent):
                 if next_pos in visited:
                     continue
                 
-                # Verificar límites
+                # Verificar limites
                 if not (0 <= next_pos[0] < self.model.width and 0 <= next_pos[1] < self.model.height):
                     continue
 
-                # Lógica de Mapa para BFS
-                # Default -1 si no está en el mapa (asumimos explorable)
+                # Logica de Mapa para BFS
+                # Default -1 si no esta en el mapa (asumimos explorable)
                 cell_state = self.mapa.get(next_pos, -1) 
 
-                # REGLA: Solo caminamos por celdas Libres (0), Visitadas (2), o la meta (-1)
-                # Obstáculos (1) están prohibidos.
+                # Solo caminamos por celdas Libres (0), Visitadas (2), o la meta (-1)
+                # Obstaculos (1) no son transitables.
                 if cell_state == 1:
                     continue
                 

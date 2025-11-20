@@ -73,7 +73,7 @@ plot_component = make_plot_component(
 )
 
 plot_component2 = make_plot_component(
-    {"Porcentaje Celdas Limpias": "green",},
+    {"Porcentaje Limpio": "green",},
 )
 
 plot_component3 = make_plot_component(
